@@ -42,7 +42,7 @@ export function CodePanel(props: CodePanelProps) {
   const [tsErrors, setTsErrors] = useState<TsErrors>();
   const [isTestPanelExpanded, setIsTestPanelExpanded] = useState(true);
   const [localStorageCode, setLocalStorageCode] = useLocalStorage(
-    `challenge-${props.challenge.slug}`,
+    props.challenge.slug !== 'test-slug' ? `challenge-${props.challenge.slug}` : '',
     '',
   );
 
@@ -60,6 +60,7 @@ export function CodePanel(props: CodePanelProps) {
   };
 
   const [code, setCode] = useState(() => getDefaultCode());
+  const [tests, setTests] = useState(() => props.challenge.tests);
   useResetEditor().subscribe('resetCode', () => {
     setCode(props.challenge.code);
     setLocalStorageCode(props.challenge.code);
@@ -110,7 +111,7 @@ export function CodePanel(props: CodePanelProps) {
         monaco={monacoInstance}
         expandTestPanel={isTestPanelExpanded}
         setIsTestPanelExpanded={setIsTestPanelExpanded}
-        tests={props.challenge.tests}
+        tests={tests}
         userCode={code}
         onMount={{
           tests: async (editor, monaco) => {
@@ -120,13 +121,24 @@ export function CodePanel(props: CodePanelProps) {
             if (!model) return null;
 
             const tsWorker = await getTsWorker(model.uri);
-            const errors = await Promise.all([
+            const testErrors = await Promise.all([
               tsWorker.getSemanticDiagnostics(TESTS_PATH),
               tsWorker.getSyntacticDiagnostics(TESTS_PATH),
               tsWorker.getCompilerOptionsDiagnostics(TESTS_PATH),
             ] as const);
 
-            setTsErrors(errors);
+            const userErrors = await Promise.all([
+              tsWorker.getSemanticDiagnostics(USER_CODE_PATH),
+              tsWorker.getSyntacticDiagnostics(USER_CODE_PATH),
+              tsWorker.getCompilerOptionsDiagnostics(USER_CODE_PATH),
+            ] as const);
+
+            setTsErrors(
+              testErrors.map((err, i) => {
+                return [...err, ...(userErrors[i] || [])];
+              }) as TsErrors,
+            );
+
             setTestEditorState(editor);
           },
           user: async (editor, monaco) => {
@@ -148,7 +160,17 @@ export function CodePanel(props: CodePanelProps) {
               tsWorker.getCompilerOptionsDiagnostics(USER_CODE_PATH),
             ] as const);
 
-            setTsErrors(testErrors);
+            const userErrors = await Promise.all([
+              tsWorker.getSemanticDiagnostics(USER_CODE_PATH),
+              tsWorker.getSyntacticDiagnostics(USER_CODE_PATH),
+              tsWorker.getCompilerOptionsDiagnostics(USER_CODE_PATH),
+            ] as const);
+
+            setTsErrors(
+              testErrors.map((err, i) => {
+                return [...err, ...(userErrors[i] || [])];
+              }) as TsErrors,
+            );
           },
         }}
         onChange={{
@@ -157,7 +179,7 @@ export function CodePanel(props: CodePanelProps) {
               props.updatePlaygroundTestsLocalStorage?.(code ?? '');
 
               if (!monacoInstance) return null;
-              setCode(code);
+              setTests(code);
               setLocalStorageCode(code);
 
               const getTsWorker = await monacoInstance.languages.typescript.getTypeScriptWorker();
@@ -197,7 +219,17 @@ export function CodePanel(props: CodePanelProps) {
               tsWorker.getCompilerOptionsDiagnostics(TESTS_PATH),
             ] as const);
 
-            setTsErrors(testErrors);
+            const userErrors = await Promise.all([
+              tsWorker.getSemanticDiagnostics(USER_CODE_PATH),
+              tsWorker.getSyntacticDiagnostics(USER_CODE_PATH),
+              tsWorker.getCompilerOptionsDiagnostics(USER_CODE_PATH),
+            ] as const);
+
+            setTsErrors(
+              testErrors.map((err, i) => {
+                return [...err, ...(userErrors[i] || [])];
+              }) as TsErrors,
+            );
           },
         }}
       />

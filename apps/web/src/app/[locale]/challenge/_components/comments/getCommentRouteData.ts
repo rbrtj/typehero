@@ -1,5 +1,5 @@
 'use server';
-import { getServerAuthSession } from '@repo/auth/server';
+import { auth } from '@repo/auth/server';
 import { prisma } from '@repo/db';
 import type { CommentRoot } from '@repo/db/types';
 import { orderBy, type SortKey, type SortOrder } from '~/utils/sorting';
@@ -82,24 +82,16 @@ export async function getPreselectedSolutionCommentMetadata(
   };
 }
 
-export async function getPaginatedComments({
-  page,
-  rootId,
+async function getCommentsCount({
   rootType,
+  rootId,
   parentId = null,
-  sortKey = 'createdAt',
-  sortOrder = 'desc',
 }: {
-  page: number;
-  rootId: number;
   rootType: CommentRoot;
+  rootId: number;
   parentId?: number | null;
-  sortKey?: SortKey;
-  sortOrder?: SortOrder;
 }) {
-  const session = await getServerAuthSession();
-
-  const totalComments = await prisma.comment.count({
+  return prisma.comment.count({
     where: {
       rootType,
       parentId,
@@ -107,6 +99,28 @@ export async function getPaginatedComments({
       ...(rootType === 'CHALLENGE' ? { rootChallengeId: rootId } : { rootSolutionId: rootId }),
     },
   });
+}
+
+export async function getPaginatedComments({
+  page,
+  rootId,
+  rootType,
+  parentId = null,
+  sortKey = 'createdAt',
+  sortOrder = 'desc',
+  take = PAGESIZE,
+}: {
+  page: number;
+  rootId: number;
+  rootType: CommentRoot;
+  parentId?: number | null;
+  sortKey?: SortKey;
+  sortOrder?: SortOrder;
+  take?: number;
+}) {
+  const session = await auth();
+
+  const totalComments = await getCommentsCount({ rootType, rootId, parentId });
 
   const totalReplies = await prisma.comment.count({
     where: {
@@ -120,8 +134,8 @@ export async function getPaginatedComments({
   });
 
   const comments = await prisma.comment.findMany({
-    skip: (page - 1) * PAGESIZE,
-    take: PAGESIZE,
+    skip: (page - 1) * take,
+    take,
     where: {
       rootType,
       parentId,
@@ -164,7 +178,7 @@ export async function getPaginatedComments({
     },
   });
 
-  const totalPages = Math.ceil(totalComments / PAGESIZE);
+  const totalPages = Math.ceil(totalComments / take);
 
   return {
     totalComments: totalReplies + totalComments,
@@ -187,7 +201,7 @@ export async function getAllComments({
   sortKey?: SortKey;
   sortOrder?: SortOrder;
 }) {
-  const session = await getServerAuthSession();
+  const session = await auth();
 
   const comments = await prisma.comment.findMany({
     where: {

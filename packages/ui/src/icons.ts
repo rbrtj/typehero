@@ -49,6 +49,7 @@ export {
   Settings2,
   Shapes,
   Share,
+  Shield,
   Sparkle,
   Sparkles,
   SquareSlash,
@@ -69,4 +70,5 @@ export {
   FlaskConical,
   History,
   ArrowLeft,
+  RectangleVertical,
 } from 'lucide-react';
